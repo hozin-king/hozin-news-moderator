@@ -52,7 +52,7 @@ def check_item(_b):
     return (None, None)
 
 def fetch_recent(_c=100):
-    r = requests.get(f'{API}/api/news', params={'limit': _c}, headers=UA, timeout=30)
+    r = requests.get(f'{API}/api/news', params={'limit': _c}, headers={**UA, 'X-Cron-Secret': SECRET}, timeout=30)
     r.raise_for_status()
     return r.json().get('news', [])
 
