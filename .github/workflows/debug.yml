@@ -1,0 +1,12 @@
+name: Debug 403
+on:
+  workflow_dispatch:
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "=== tanpa secret ==="
+          curl -s -D - -o /dev/null "https://aistudio.hozinking.my.id/api/news?limit=1" | head -15
+          echo "=== dengan secret ==="
+          curl -s -D - -o /dev/null "https://aistudio.hozinking.my.id/api/news?limit=1" -H "X-Cron-Secret: ${{ secrets.AISTUDIO_CRON_SECRET }}" | head -15
