@@ -10,7 +10,7 @@ name: News Auto Pipeline
 
 on:
   schedule:
-    - cron: '*/1 * * * *'  # tiap jam
+    - cron: '0 * * * *'  # tiap jam
   workflow_dispatch:
 
 permissions:

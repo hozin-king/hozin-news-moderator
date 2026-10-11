@@ -127,7 +127,10 @@ def to_database_entry(article_path, now_utc):
 
 
 def write_database_files(article_path, output_dir, now_utc):
-    """Tulis database/news_YYYY-MM-DD-HH.json + latest.json (overwrite).
+    """Tulis database/news_YYYY-MM-DD-HH.json + latest.json (akumulasi, terbaru di atas).
+
+    latest.json MENAMBAH artikel baru di posisi teratas (bukan overwrite),
+    dengan dedup by id/source_url. Dibatasi 200 artikel terbaru biar file tidak bengkak.
 
     File-file ini yang di-commit oleh GitHub Actions workflow
     (.github/workflows/news-pipeline.yml) sebagai API gratis.
@@ -141,11 +144,26 @@ def write_database_files(article_path, output_dir, now_utc):
     with open(hourly, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2, ensure_ascii=False)
 
+    # latest.json: tambah di atas, dedup, batasi 200
     latest = os.path.join(output_dir, "latest.json")
+    existing = []
+    if os.path.exists(latest):
+        try:
+            with open(latest, encoding="utf-8") as f:
+                existing = json.load(f)
+                if not isinstance(existing, list):
+                    existing = []
+        except Exception:
+            existing = []
+    seen_ids = {e.get("id") for e in existing}
+    seen_urls = {e.get("source_url") for e in existing}
+    new_items = [entry] if (entry.get("id") not in seen_ids
+                            and entry.get("source_url") not in seen_urls) else []
+    merged = (new_items + existing)[:200]
     with open(latest, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2, ensure_ascii=False)
+        json.dump(merged, f, indent=2, ensure_ascii=False)
 
-    think("pipeline", f"Database ditulis: {hourly} + latest.json", "keputusan")
+    think("pipeline", f"Database ditulis: {hourly} + latest.json ({len(merged)} artikel, terbaru di atas)", "keputusan")
     return hourly, latest
 
 
