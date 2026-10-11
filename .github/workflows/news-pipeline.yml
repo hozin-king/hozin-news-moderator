@@ -1,0 +1,49 @@
+name: News Auto Pipeline
+
+# Pipeline berita otonom tiap 1 jam:
+#   selector → producer → feedback
+# Hasil scrape + artikel dibungkus ke database/news_YYYY-MM-DD-HH.json
+# File JSON ini jadi API berita gratis via:
+#   https://raw.githubusercontent.com/hozin-king/hozin-news-moderator/main/database/news_YYYY-MM-DD-HH.json
+#   https://hozin-king.github.io/hozin-news-moderator/database/news_YYYY-MM-DD-HH.json (jika Pages aktif)
+# Index terbaru selalu di: database/latest.json
+
+on:
+  schedule:
+    - cron: '0 * * * *'  # tiap jam
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install deps
+        run: pip install requests beautifulsoup4 langdetect deep-translator
+
+      - name: Jalankan pipeline berita
+        run: |
+          cd autonomous
+          python3 run_pipeline.py --output-dir ../database 2>&1 | tail -30
+        env:
+          AISTUDIO_CRON_SECRET: ${{ secrets.AISTUDIO_CRON_SECRET }}
+
+      - name: Commit hasil JSON
+        run: |
+          git config user.name "hozin-news-bot"
+          git config user.email "bot@hozinking.my.id"
+          git add database/
+          # Commit hanya jika ada perubahan
+          git diff --cached --quiet || git commit -m "Auto: news pipeline $(date -u +%Y-%m-%d-%H) UTC"
+          git push
