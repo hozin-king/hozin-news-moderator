@@ -61,9 +61,15 @@ def fetch_recent(_c=100):
     except requests.exceptions.HTTPError as e:
         if e.response is not None and e.response.status_code == 403:
             print('[WARN] /api/news 403 (kemungkinan blokir Cloudflare), coba /api/news/public...', file=sys.stderr)
-            r = requests.get(f'{API}/api/news/public', params={'limit': _c}, headers=UA, timeout=30)
-            r.raise_for_status()
-            return r.json().get('news', [])
+            try:
+                r = requests.get(f'{API}/api/news/public', params={'limit': _c}, headers=UA, timeout=30)
+                r.raise_for_status()
+                return r.json().get('news', [])
+            except requests.exceptions.HTTPError as e2:
+                if e2.response is not None and e2.response.status_code == 403:
+                    print('[WARN] /api/news/public juga 403 — Cloudflare blokir IP GitHub Actions. Lewati run ini.', file=sys.stderr)
+                    return []
+                raise
         raise
 
 def moderate(_d, _e):
