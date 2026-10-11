@@ -29,6 +29,7 @@ from datetime import date, datetime
 from thought_log import think, section
 
 BASE = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.dirname(BASE)  # root repo hozin-news-moderator
 WEIGHTS_FILE = os.path.join(BASE, "weights.json")
 STATE_DIR = os.path.join(BASE, "state")
 PRODUCED_FILE = os.path.join(STATE_DIR, "produced.json")
@@ -71,16 +72,53 @@ def fetch_candidates(limit=50):
 
 
 def produced_keys():
-    """(source_url, title) yang sudah diproduksi sistem ini."""
-    items = load_json(PRODUCED_FILE, [])
+    """(source_url, title) yang sudah diproduksi sistem ini.
+
+    Cek 3 lapis biar tidak duplikat:
+    1. state/produced.json (lokal, antar run di mesin yang sama)
+    2. database/latest.json + database/news_*.json (repo, persisten antar run GitHub Actions)
+    3. API publik (fallback bila file lokal tidak ada)
+    """
     urls, titles = set(), []
-    for p in items:
-        u = (p.get("source_url") or "").strip()
-        t = (p.get("title") or "").strip()
-        if u:
-            urls.add(u)
-        if t:
-            titles.append(t)
+
+    def _collect(items):
+        for p in items:
+            u = (p.get("source_url") or "").strip()
+            t = (p.get("title") or "").strip()
+            if u:
+                urls.add(u)
+                # juga tanpa query param (kadang URL beda param tapi artikel sama)
+                urls.add(u.split("?")[0])
+            if t:
+                titles.append(t)
+
+    # Lapis 1: state lokal
+    _collect(load_json(PRODUCED_FILE, []))
+
+    # Lapis 2: database JSON di repo (penting untuk GitHub Actions — fresh env tiap run)
+    db_dir = os.path.join(REPO, "database")
+    if os.path.isdir(db_dir):
+        for fn in os.listdir(db_dir):
+            if fn == "latest.json" or (fn.startswith("news_") and fn.endswith(".json")):
+                try:
+                    data = load_json(os.path.join(db_dir, fn), [])
+                    _collect(data if isinstance(data, list) else [data])
+                except Exception:
+                    pass
+
+    # Lapis 3: API publik (fallback)
+    if not urls:
+        try:
+            import urllib.request
+            req = urllib.request.Request(
+                "https://aistudio.hozinking.my.id/api/news/public?limit=100",
+                headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=15) as r:
+                data = json.load(r)
+                _collect(data.get("news", []))
+        except Exception:
+            pass
+
     return urls, titles
 
 
