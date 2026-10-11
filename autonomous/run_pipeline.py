@@ -173,7 +173,7 @@ def write_database_files(article_path, output_dir, now_utc):
     seen_urls = {e.get("source_url") for e in existing}
     new_items = [entry] if (entry.get("id") not in seen_ids
                             and entry.get("source_url") not in seen_urls) else []
-    merged = (new_items + existing)[:200]
+    merged = (new_items + existing)[:1000]
     with open(latest, "w", encoding="utf-8") as f:
         json.dump(merged, f, indent=2, ensure_ascii=False)
 
