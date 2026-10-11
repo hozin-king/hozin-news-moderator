@@ -52,14 +52,30 @@ def check_item(_b):
     return (None, None)
 
 def fetch_recent(_c=100):
-    r = requests.get(f'{API}/api/news', params={'limit': _c}, headers={**UA, 'X-Cron-Secret': SECRET}, timeout=30)
-    r.raise_for_status()
-    return r.json().get('news', [])
+    # Coba endpoint auth dulu, fallback ke publik (tanpa secret).
+    # GitHub Actions kadang kena blokir Cloudflare (403) — jangan crash workflow.
+    try:
+        r = requests.get(f'{API}/api/news', params={'limit': _c}, headers={**UA, 'X-Cron-Secret': SECRET}, timeout=30)
+        r.raise_for_status()
+        return r.json().get('news', [])
+    except requests.exceptions.HTTPError as e:
+        if e.response is not None and e.response.status_code == 403:
+            print('[WARN] /api/news 403 (kemungkinan blokir Cloudflare), coba /api/news/public...', file=sys.stderr)
+            r = requests.get(f'{API}/api/news/public', params={'limit': _c}, headers=UA, timeout=30)
+            r.raise_for_status()
+            return r.json().get('news', [])
+        raise
 
 def moderate(_d, _e):
-    r = requests.post(f'{API}/api/ingest/moderate', headers={**UA, 'X-Cron-Secret': SECRET}, json={'ids': _d, 'reason': _e}, timeout=30)
-    r.raise_for_status()
-    return r.json()
+    try:
+        r = requests.post(f'{API}/api/ingest/moderate', headers={**UA, 'X-Cron-Secret': SECRET}, json={'ids': _d, 'reason': _e}, timeout=30)
+        r.raise_for_status()
+        return r.json()
+    except requests.exceptions.HTTPError as e:
+        if e.response is not None and e.response.status_code == 403:
+            print(f'[WARN] moderate 403 (blokir Cloudflare) — {len(_d)} item kategori {_e} DITANDAI tapi tidak dihapus.', file=sys.stderr)
+            return {'deleted': 0, 'blocked': True}
+        raise
 
 def main():
     if not SECRET:
