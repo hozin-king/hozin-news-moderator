@@ -137,12 +137,26 @@ def write_database_files(article_path, output_dir, now_utc):
     """
     os.makedirs(output_dir, exist_ok=True)
     entry = to_database_entry(article_path, now_utc)
-    payload = [entry]  # satu artikel per run
 
     hourly = os.path.join(
         output_dir, f"news_{now_utc.strftime('%Y-%m-%d-%H')}.json")
+    # File per jam juga akumulasi (terbaru di atas), bukan overwrite
+    hourly_existing = []
+    if os.path.exists(hourly):
+        try:
+            with open(hourly, encoding="utf-8") as f:
+                hourly_existing = json.load(f)
+                if not isinstance(hourly_existing, list):
+                    hourly_existing = [hourly_existing] if hourly_existing else []
+        except Exception:
+            hourly_existing = []
+    h_ids = {e.get("id") for e in hourly_existing}
+    h_urls = {e.get("source_url") for e in hourly_existing}
+    h_new = [entry] if (entry.get("id") not in h_ids
+                        and entry.get("source_url") not in h_urls) else []
+    hourly_payload = (h_new + hourly_existing)[:50]
     with open(hourly, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2, ensure_ascii=False)
+        json.dump(hourly_payload, f, indent=2, ensure_ascii=False)
 
     # latest.json: tambah di atas, dedup, batasi 200
     latest = os.path.join(output_dir, "latest.json")
