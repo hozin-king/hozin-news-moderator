@@ -7,9 +7,10 @@ lalu memilih SATU berita terbaik berdasarkan skor:
 freshness (berita baru > lama) + bobot kategori + kelengkapan
 (ada gambar asli + konten full) + anti-duplikat.
 
-ANTI AI SLOP: filter_slop() menolak mentah-mentah:
+ANTI AI SLOP: filter_slop() menolak:
 - judul clickbait (ALL CAPS, kata WOW/HEBOH/VIRAL, seru berlebih)
-- konten < 150 kata
+- konten < 60 kata (dilonggarkan 12 Okt 2026 — sebelumnya 150, terlalu
+  agresif sampai pipeline hampir tidak pernah menghasilkan artikel)
 - judul mirip >80% dengan yang sudah diproduksi
 
 Contoh:
@@ -28,6 +29,15 @@ from datetime import date, datetime
 
 from thought_log import think, section
 
+# Reuse ekstraktor isi artikel milik producer — bila API hanya memberi
+# judul+ringkasan (content kosong), selector mencoba mengambil isi asli
+# dari source_url sebelum menolak kandidat. Best-effort: gagal fetch =
+# kandidat tetap ditolak seperti biasa.
+try:
+    from news_producer import extract_article
+except Exception:  # pragma: no cover - producer tidak tersedia
+    extract_article = None
+
 BASE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(BASE)  # root repo hozin-news-moderator
 WEIGHTS_FILE = os.path.join(BASE, "weights.json")
@@ -35,7 +45,7 @@ STATE_DIR = os.path.join(BASE, "state")
 PRODUCED_FILE = os.path.join(STATE_DIR, "produced.json")
 
 PUBLIC_API = "https://aistudio.hozinking.my.id/api/news/public"
-MIN_WORDS = 150
+MIN_WORDS = 60
 
 # Kata clickbait (sama seperti scrape_news_v2.py).
 CLICKBAIT_WORDS = [
@@ -126,6 +136,45 @@ def title_similar(a, b):
     return difflib.SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
 
+# Batas fetch isi artikel per run — cukup sampai ketemu kandidat layak,
+# jangan hajar semua source bila API-nya memang lagi kosong semua.
+# (12 Okt 2026: 8 → 12, karena fetch lama sering gagal dan butuh lebih banyak percobaan)
+MAX_SOURCE_FETCH = 12
+
+
+def enrich_from_source(item, cache, budget):
+    """Coba ambil isi artikel dari source_url bila content API tipis.
+
+    Return (ok: bool, catatan: str). Hasil di-cache per URL dalam satu run.
+    budget = [sisa] (list 1-elemen agar bisa dikurangi dari pemanggil).
+    """
+    if extract_article is None:
+        return False, "ekstraktor producer tidak tersedia"
+    url = (item.get("source_url") or "").strip()
+    if not url:
+        return False, "tanpa source_url"
+    if url in cache:
+        body, img = cache[url]
+    else:
+        if budget[0] <= 0:
+            return False, "budget fetch habis"
+        budget[0] -= 1
+        think("selector", f"content tipis — coba ambil isi dari {url[:70]}…", "data")
+        try:
+            body, img = extract_article(url)
+        except Exception as e:
+            body, img = "", None
+            think("selector", f"fetch gagal: {e}", "tolak")
+        body = body or ""
+        cache[url] = (body, img)
+    if word_count(body) < MIN_WORDS:
+        return False, f"isi source juga tipis ({word_count(body)} kata)"
+    item["content"] = body
+    if img and not item.get("image_url"):
+        item["image_url"] = img
+    return True, f"isi diambil dari source ({word_count(body)} kata)"
+
+
 def is_clickbait(title):
     """Return (True, alasan) bila judul clickbait. Mirror scrape_news_v2.py."""
     t = (title or "").strip()
@@ -153,7 +202,7 @@ def filter_slop(item):
     if bad:
         return False, f"clickbait ({reason})"
 
-    # 2. Konten tipis <150 kata — anti AI slop.
+    # 2. Konten tipis <60 kata — anti AI slop (ambang longgar).
     if word_count(content) < MIN_WORDS:
         return False, f"konten tipis ({word_count(content)} kata)"
 
@@ -255,8 +304,18 @@ def main():
     ranked = []
     section("Pemilihan Berita")
     think("selector", f"Mulai menilai {len(cands)} kandidat (ambang skor: {min_score})", "data")
+    fetch_cache = {}
+    fetch_budget = [MAX_SOURCE_FETCH]
     for c in cands:
         skor, alasan = score_candidate(c, weights, produced_urls, produced_titles)
+        # Kandidat yang gugur HANYA karena konten tipis + punya source_url:
+        # coba ambil isi asli sebelum benar-benar ditolak.
+        if skor == 0.0 and any("konten tipis" in a for a in alasan):
+            ok, note = enrich_from_source(c, fetch_cache, fetch_budget)
+            think("selector", f"fallback source: {note}", "keputusan" if ok else "tolak")
+            if ok:
+                skor, alasan = score_candidate(c, weights, produced_urls, produced_titles)
+                alasan.append(f"[fallback] {note}")
         ranked.append((skor, c, alasan))
     ranked.sort(key=lambda x: x[0], reverse=True)
 

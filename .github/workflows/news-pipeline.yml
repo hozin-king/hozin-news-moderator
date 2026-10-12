@@ -34,6 +34,9 @@ jobs:
 
       - name: Jalankan pipeline berita
         run: |
+          # pipefail: kegagalan pipeline (mis. selector exit 3) tidak boleh
+          # tertutup 'tail' lalu terlihat hijau padahal tidak menghasilkan apa-apa.
+          set -o pipefail
           cd autonomous
           python3 run_pipeline.py --output-dir ../database 2>&1 | tail -30
         env:

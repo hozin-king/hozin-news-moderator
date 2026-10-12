@@ -8,8 +8,9 @@ Pipeline:
               -> susun struktur jurnalistik (judul, lead, isi, penutup)
               -> quality_gate() -> article.json
 
-ANTI AI SLOP: quality_gate() menolak mentah-mentah bila:
-- konten < 150 kata
+ANTI AI SLOP: quality_gate() menolak bila:
+- konten < 80 kata (ambang dilonggarkan 12 Okt 2026 — sebelumnya 150,
+  terlalu agresif sampai pipeline hampir tidak pernah menghasilkan artikel)
 - tidak ada gambar konten yang valid (bukan logo/icon/tombol)
 - hasil terjemahan kosong/rusak
 
@@ -38,7 +39,7 @@ STATE_DIR = os.path.join(BASE, "state")
 UA = ("Mozilla/5.0 (Linux; Android 10; POCO X6 Pro) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36")
 
-MIN_WORDS = 150
+MIN_WORDS = 80
 MIN_IMG_DIM = 300
 
 # Pola URL yang PASTI bukan gambar konten (logo, icon, tombol, sosmed).
@@ -241,10 +242,88 @@ def extract_image(soup, page_url):
     return None
 
 
+def _clean_text(t):
+    t = re.sub(r"\s+", " ", t or "").strip()
+    return t
+
+
+def _jsonld_article_body(soup):
+    """Strategi 1: ambil articleBody dari JSON-LD (sering paling bersih)."""
+    best = ""
+    for script in soup.find_all("script", type="application/ld+json"):
+        raw = script.string or ""
+        if not raw.strip():
+            continue
+        try:
+            data = json.loads(raw)
+        except Exception:
+            continue
+        cands = data if isinstance(data, list) else [data]
+        # dukung juga @graph
+        expanded = []
+        for c in cands:
+            if isinstance(c, dict):
+                expanded.append(c)
+                g = c.get("@graph")
+                if isinstance(g, list):
+                    expanded.extend([x for x in g if isinstance(x, dict)])
+        for it in expanded:
+            body = it.get("articleBody")
+            if isinstance(body, str):
+                body = _clean_text(body)
+                if len(body) > len(best):
+                    best = body
+    return best
+
+
+def _paras_from(scope):
+    """Kumpulkan paragraf <p> yang substansial dari sebuah scope."""
+    paras = []
+    for p in scope.find_all("p"):
+        t = _clean_text(p.get_text(" ", strip=True))
+        if len(t) > 40:
+            paras.append(t)
+    return paras
+
+
+def _largest_div_text(soup):
+    """Strategi 3: teks dari <div> dengan teks terbanyak (fallback)."""
+    best, best_len = "", 0
+    for div in soup.find_all("div"):
+        # lewati div navigasi/iklan/komentar yang jelas
+        cls = " ".join(div.get("class") or []).lower()
+        did = (div.get("id") or "").lower()
+        if any(k in cls or k in did for k in
+               ("nav", "menu", "sidebar", "footer", "header", "comment",
+                "related", "widget", "ads", "share", "social", "popup")):
+            continue
+        t = _clean_text(div.get_text(" ", strip=True))
+        # hanya teks langsung yang substansial, hindari duplikasi <p>
+        if len(t) > best_len and len(t.split()) >= 50:
+            best, best_len = t, len(t)
+    return best
+
+
 def extract_article(url):
-    """Ambil (konten full, image_url) dari URL asli."""
+    """Ambil (konten full, image_url) dari URL asli.
+
+    Beberapa strategi berurutan (12 Okt 2026 — sebelumnya hanya <p> dengan
+    satu header sederhana, sehingga hampir selalu 0 kata dan selector
+    menolak semua kandidat):
+      1. JSON-LD articleBody
+      2. <article> → <p>
+      3. seluruh halaman → <p>
+      4. <div> dengan teks terbanyak
+    """
+    headers = {
+        "User-Agent": UA,
+        "Accept": ("text/html,application/xhtml+xml,application/xml;q=0.9,"
+                   "image/webp,*/*;q=0.8"),
+        "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Cache-Control": "no-cache",
+    }
     try:
-        r = requests.get(url, headers={"User-Agent": UA}, timeout=25,
+        r = requests.get(url, headers=headers, timeout=25,
                          allow_redirects=True)
         r.raise_for_status()
         if len(r.content) > 3_000_000:
@@ -258,14 +337,16 @@ def extract_article(url):
         for tag in soup(["script", "style", "nav", "header", "footer",
                          "aside", "form", "button", "iframe", "noscript"]):
             tag.decompose()
-        article = soup.find("article")
-        container = article if article else soup
-        paras = []
-        for p in container.find_all("p"):
-            t = p.get_text(" ", strip=True)
-            if len(t) > 40:
-                paras.append(t)
-        text = "\n\n".join(paras)
+
+        text = _jsonld_article_body(soup)
+        if word_count(text) < 60:
+            article = soup.find("article")
+            paras = _paras_from(article if article else soup)
+            text = "\n\n".join(paras)
+        if word_count(text) < 60:
+            div_text = _largest_div_text(soup)
+            if word_count(div_text) > word_count(text):
+                text = div_text
         text = re.sub(r"\n{3,}", "\n\n", text).strip()
         return text[:18000], image_url
     except Exception as e:
