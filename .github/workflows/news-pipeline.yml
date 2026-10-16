@@ -32,6 +32,11 @@ jobs:
       - name: Install deps
         run: pip install requests beautifulsoup4 langdetect deep-translator
 
+      - name: Merge artikel dari hozin-news-getter
+        run: |
+          # Tarik RSS segar (tiap 10 mnt) dari repo getter, moderasi, gabung ke latest.json
+          python3 merge_getter.py
+
       - name: Jalankan pipeline berita
         run: |
           # pipefail: kegagalan pipeline (mis. selector exit 3) tidak boleh
