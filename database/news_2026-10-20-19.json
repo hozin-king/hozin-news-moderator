@@ -1,0 +1,15 @@
+[
+  {
+    "id": "e474fb42a3d5",
+    "title": "Intel & AMD peringatkan pelanggan di China: antrean CPU sampai 6 bulan, harga naik 10%",
+    "summary": "Intel rationing deliveries of fourth and fifth-generation CPUs, with wait times of up to six months anticipated",
+    "content": "Intel & AMD peringatkan pelanggan di China: antrean CPU sampai 6 bulan, harga naik 10%\n\nIntel rationing deliveries of fourth and fifth-generation CPUs, with wait times of up to six months anticipated\n\nChinese companies wanting to purchase CPUs from Intel and AMD are facing long delays due to hardware shortages. According to a report from Reuters , Intel has warned customers in China that lead times for some CPUs are now up to six months, with prices also increasing by more than 10 percent as a result of supply chain constraints. Sources cited by the news outlet claimed fourth and fifth-generation Intel Xeon CPUs are in particularly short supply and, as a consequence, the chipmaker was now rationing deliveries and struggling to fulfill what the report described as “a substantial backlog” of orders for these models. AMD is also experiencing supply chain challenges, with delivery times for the company’s CPUs now sitting at between eight and 10 weeks, the report added. Following the publication of Intel’s Q4 and FY2025 results earlier this month, CFO David Zinsner admitted that the company misjudged demand for data center CPUs, noting that conversations with customers had led the company to believe that while CPU core counts were expected to increase, “unit volumes were not.”\n\nIn an effort to course correct, Zinsner said Intel is now \"shifting as much [capacity] as we can over to the data center.” However, the company expects the CPU shortage to continue into FY2026, reaching its “lowest level” in Q1 before improving in Q2 and beyond. AMD CEO Lisa Su said during the company’s own earnings call that server CPU demand is expected to remain strong in 2026, with the chip designer saying it was engaged in supply chain and multiyear capacity planning in order to support this anticipated growth. In a statement to Reuters, AMD told the news outlet, “we remain confident in our ability to meet customer demand globally based on our strong supplier agreements and supply chain, including our partnership with TSMC.”\n\nBerita ini disusun dari laporan Data Center Dynamics (laporan Reuters).",
+    "image_url": "https://media.datacenterdynamics.com/media/images/newsroom-intel-5th-gen-xeon-2-121.2e16d0ba.fill-1200x630.jpg",
+    "source_name": "Data Center Dynamics (laporan Reuters)",
+    "source_url": "https://www.datacenterdynamics.com/en/news/intel-and-amd-warn-chinese-customers-of-cpu-delays-due-to-supply-shortages-report/",
+    "category": "cpu",
+    "published_at": 1792457696,
+    "original_lang": "en",
+    "scraped_at": "2026-10-20T19:04:10Z"
+  }
+]
