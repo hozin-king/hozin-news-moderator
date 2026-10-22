@@ -22,8 +22,12 @@ selalu keisi artikel RSS segar yang udah dimoderasi.
 import hashlib
 import json
 import os
+import re
 import sys
 import urllib.request
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+from html import unescape
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE)
@@ -37,6 +41,90 @@ GETTER_CATEGORIES_URL = GETTER_BASE + "/categories.json"
 LATEST = os.path.join(BASE, "database", "latest.json")
 UA = {"User-Agent": "Mozilla/5.0 HozinNewsModerator/1.0"}
 MAX_ARTICLES = 1000
+
+
+
+# ---------------- Normalisasi (v2.7) ----------------
+# Ringkasan RSS sebagian masih HTML mentah (mis. diawali tag <img .../> —
+# 457 dari 1.000 item), dan published_at tidak konsisten antar sumber
+# (epoch detik vs string RFC-822). Normalisasi di sini membersihkan
+# untuk SEMUA konsumen latest.json sekaligus (Hozin Tools, AI Studio).
+
+_IMG_RE = re.compile(r'<img[^>]+src\s*=\s*["\']([^"\']+)["\']', re.I)
+_BLOCK_RE = re.compile(r"(?i)<\s*br\s*/?>|</\s*(p|div|li|tr|h[1-6])\s*>")
+_TAG_RE = re.compile(r"<[^>]*>")
+_LEFTOVER_RE = re.compile(r"<[a-zA-Z/!][^>]*$")
+
+
+def strip_html(raw):
+    """HTML mentah -> teks polos (tag dibuang, entitas di-decode)."""
+    if not raw:
+        return ""
+    s = _BLOCK_RE.sub(" ", str(raw))
+    s = _TAG_RE.sub("", s)
+    s = _LEFTOVER_RE.sub("", s)
+    s = unescape(s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def first_image(raw):
+    """URL <img src> pertama di HTML mentah ("" bila tidak ada)."""
+    if not raw:
+        return ""
+    m = _IMG_RE.search(str(raw))
+    if m and m.group(1).startswith(("http://", "https://")):
+        return m.group(1).strip()
+    return ""
+
+
+def to_epoch(v):
+    """published_at bentuk apa pun -> epoch detik int (0 bila tak dikenal)."""
+    if v is None:
+        return 0
+    if isinstance(v, (int, float)):
+        n = int(v)
+        return n // 1000 if n >= 100_000_000_000 else max(n, 0)
+    s = str(v).strip()
+    if not s:
+        return 0
+    if re.fullmatch(r"-?\d+", s):
+        n = int(s)
+        return n // 1000 if n >= 100_000_000_000 else max(n, 0)
+    try:
+        dt = parsedate_to_datetime(s)
+        if dt is not None:
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return int(dt.timestamp())
+    except Exception:
+        pass
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return int(dt.timestamp())
+    except Exception:
+        return 0
+
+
+def normalize_item(a):
+    """Normalisasi satu item latest.json di tempat. True bila berubah."""
+    changed = False
+    raw_summary = a.get("summary") or ""
+    clean = strip_html(raw_summary)
+    if clean != raw_summary:
+        a["summary"] = clean[:500]
+        changed = True
+    if not a.get("image_url"):
+        img = first_image(raw_summary)
+        if img:
+            a["image_url"] = img
+            changed = True
+    ep = to_epoch(a.get("published_at"))
+    if a.get("published_at") != ep:
+        a["published_at"] = ep
+        changed = True
+    return changed
 
 
 def fetch_lines(url):
@@ -115,22 +203,22 @@ def to_moderator_format(g, enrich=None, labels=None):
     translated = bool(enrich.get("translated"))
     title = enrich.get("title") if translated and enrich.get("title") \
         else g.get("title", "")
-    summary = enrich.get("summary") if translated and enrich.get("summary") \
+    raw_summary = enrich.get("summary") if translated and enrich.get("summary") \
         else g.get("description", "")
     item = {
         "id": hashlib.sha256(link.encode()).hexdigest()[:16],
         "title": title,
-        "summary": summary[:500],
+        "summary": strip_html(raw_summary)[:500],
         "content": enrich.get("content", ""),
         # Kategori utama = kategori pertama hasil klasifikasi getter;
         # "rss" dipertahankan untuk artikel tanpa klasifikasi.
         "category": categories[0] if categories else "rss",
         "categories": categories,
         "category_labels": [labels.get(s, s) for s in categories],
-        "image_url": "",
+        "image_url": first_image(raw_summary),
         "original_lang": enrich.get("source_lang", "en") if translated
         else "id",
-        "published_at": g.get("pubDate", ""),
+        "published_at": to_epoch(g.get("pubDate", "")),
         "scraped_at": g.get("fetched_at", ""),
         "source_name": g.get("source", ""),
         "source_url": link,
@@ -241,12 +329,17 @@ def main():
 
     filled = backfill_existing(latest, by_link, labels)
 
-    if new_items or filled:
+    # Normalisasi menyeluruh: item lama (termasuk yang tidak dikenal
+    # getter) ikut dibersihkan sekali ini dan tiap run berikutnya.
+    normalized = sum(1 for a in latest if normalize_item(a))
+
+    if new_items or filled or normalized:
         with open(LATEST, "w", encoding="utf-8") as f:
             json.dump(latest, f, ensure_ascii=False, indent=1)
 
     print(f"[merge_getter] {len(lines)} baris getter → {added} baru, "
           f"{rejected} ditolak moderasi, {filled} item lama ter-backfill, "
+          f"{normalized} item ter-normalisasi, "
           f"total latest.json: {len(latest)}")
     return 0
 
