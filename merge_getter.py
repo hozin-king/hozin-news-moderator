@@ -86,6 +86,21 @@ def load_getter_enrichment():
                     and a.get("content")
                     and len(a["content"]) > len(entry["content"])):
                 entry["content"] = a["content"]
+            # Video tertanam dari getter (aditif) — diteruskan apa adanya.
+            if a.get("video_url"):
+                entry["video_type"] = a.get("video_type", "")
+                entry["video_id"] = a.get("video_id", "")
+                entry["video_url"] = a["video_url"]
+            # Artikel terjemahan getter: judul + ringkasan Bahasa
+            # Indonesia-nya ikut dibawa (judul asli tetap di getter
+            # sebagai original_title).
+            if a.get("translated"):
+                entry["translated"] = True
+                entry["source_lang"] = a.get("source_lang", "en")
+                if a.get("title"):
+                    entry["title"] = a["title"]
+                if a.get("description"):
+                    entry["summary"] = a["description"]
     return by_link, labels
 
 
@@ -95,10 +110,17 @@ def to_moderator_format(g, enrich=None, labels=None):
     enrich = enrich or {}
     labels = labels or {}
     categories = enrich.get("categories") or []
-    return {
+    # Artikel terjemahan: pakai judul + ringkasan Bahasa Indonesia dari
+    # getter; artikel biasa tetap dari baris articles.jsonl mentah.
+    translated = bool(enrich.get("translated"))
+    title = enrich.get("title") if translated and enrich.get("title") \
+        else g.get("title", "")
+    summary = enrich.get("summary") if translated and enrich.get("summary") \
+        else g.get("description", "")
+    item = {
         "id": hashlib.sha256(link.encode()).hexdigest()[:16],
-        "title": g.get("title", ""),
-        "summary": g.get("description", "")[:500],
+        "title": title,
+        "summary": summary[:500],
         "content": enrich.get("content", ""),
         # Kategori utama = kategori pertama hasil klasifikasi getter;
         # "rss" dipertahankan untuk artikel tanpa klasifikasi.
@@ -106,12 +128,19 @@ def to_moderator_format(g, enrich=None, labels=None):
         "categories": categories,
         "category_labels": [labels.get(s, s) for s in categories],
         "image_url": "",
-        "original_lang": "id",
+        "original_lang": enrich.get("source_lang", "en") if translated
+        else "id",
         "published_at": g.get("pubDate", ""),
         "scraped_at": g.get("fetched_at", ""),
         "source_name": g.get("source", ""),
         "source_url": link,
     }
+    # Video tertanam (aditif, hanya bila getter menemukannya).
+    if enrich.get("video_url"):
+        item["video_type"] = enrich.get("video_type", "")
+        item["video_id"] = enrich.get("video_id", "")
+        item["video_url"] = enrich["video_url"]
+    return item
 
 
 def backfill_existing(latest, by_link, labels):
@@ -136,6 +165,11 @@ def backfill_existing(latest, by_link, labels):
             touched = True
         if info.get("content") and not a.get("content"):
             a["content"] = info["content"]
+            touched = True
+        if info.get("video_url") and not a.get("video_url"):
+            a["video_type"] = info.get("video_type", "")
+            a["video_id"] = info.get("video_id", "")
+            a["video_url"] = info["video_url"]
             touched = True
         if touched:
             changed += 1
