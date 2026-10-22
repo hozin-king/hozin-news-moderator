@@ -171,6 +171,18 @@ def backfill_existing(latest, by_link, labels):
             a["video_id"] = info.get("video_id", "")
             a["video_url"] = info["video_url"]
             touched = True
+        # Item terjemahan: judul + ringkasan DISINKRONKAN dari getter,
+        # bukan hanya diisi bila kosong — perbaikan terjemahan di
+        # getter (mis. ringkasan yang tadinya blob HTML feed) harus
+        # merambat; nilai tersimpan pun berasal dari pipa yang sama.
+        if info.get("translated"):
+            if info.get("title") and a.get("title") != info["title"]:
+                a["title"] = info["title"]
+                touched = True
+            if info.get("summary") and \
+                    a.get("summary") != info["summary"][:500]:
+                a["summary"] = info["summary"][:500]
+                touched = True
         if touched:
             changed += 1
     return changed
