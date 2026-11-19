@@ -1,0 +1,15 @@
+[
+  {
+    "id": "1adcbf4cb4c4",
+    "title": "Desktop RTX Spark dari ASUS, Dell, dan MSI Mulai Dijual untuk AI Lokal",
+    "summary": "Nvidia mengumumkan pada 18 November bahwa komputer desktop kompak RTX Spark dari ASUS, Dell, dan MSI kini tersedia untuk dibeli, menghadirkan agen AI lokal, penyempurnaan alur kerja, serta pembuatan gambar dan video ke mesin Windows khusus. Dalam pengumumannya, perusahaan menyatakan bahwa sistem tersebut mengintegrasikan CPU Grace 20-inti bersama GPU Nvidia Blackwell RTX yang menyediakan 6,144 inti CUDA, dengan memori terpadu mencapai hingga 128GB. Postingan Nvidia menambahkan bahwa perangkat ke",
+    "content": "Desktop RTX Spark dari ASUS, Dell, dan MSI Mulai Dijual untuk AI Lokal\n\nNvidia mengumumkan pada 18 November bahwa komputer desktop kompak RTX Spark dari ASUS, Dell, dan MSI kini tersedia untuk dibeli, menghadirkan agen AI lokal, penyempurnaan alur kerja, serta pembuatan gambar dan video ke mesin Windows khusus. Dalam pengumumannya, perusahaan menyatakan bahwa sistem tersebut mengintegrasikan CPU Grace 20-inti bersama GPU Nvidia Blackwell RTX yang menyediakan 6,144 inti CUDA, dengan memori terpadu mencapai hingga 128GB. Postingan Nvidia menambahkan bahwa perangkat keras tersebut memberikan kinerja AI hingga 1 petaflop dan mencakup Ethernet 10-gigabit untuk memindahkan kumpulan data, bobot model, dan file media ke penyimpanan jaringan. Menurut pengumuman tersebut, perangkat keras tersebut menjalankan model bahasa 120 miliar parameter secara lokal, merender adegan 3D melebihi 90 GB secara real-time, dan mendukung pengeditan video 4:2:2 secara real-time. Perusahaan menyatakan dalam rilisnya bahwa eksekusi pada perangkat mempertahankan kode dan file di mesin sekaligus menghilangkan biaya API cloud per token untuk beban kerja yang didukung. Pengumuman tersebut menyatakan bahwa model desktop akan bergabung dengan laptop RTX Spark yang sudah ada, sementara opsi perangkat keras yang akan datang mencakup mini PC dari HP, Acer dan GIGABYTE serta Microsoft Surface RTX Spark Dev Box. Nvidia juga mencatat dalam rilisnya bahwa dukungan perangkat lunak asli Windows on Arm mencakup rekonstruksi sinar viewport Blender 5.3 dan pembaruan untuk alat kreatif Adobe. Lihat persyaratan rilis RTX Spark di pelacak Perangkat Keras\n\nTopik Perangkat Keras AI Lokal Nvidia Blackwell\n\nBerita ini disusun dari laporan siliconreport.com.",
+    "image_url": "https://www.content.shi.com/cms-content/accelerator/media/brands/pny/pny-060223-nvidia-dgx-spark.jpg",
+    "source_name": "siliconreport.com",
+    "source_url": "https://www.siliconreport.com/rtx-spark-compact-desktops-from-asus-dell-and-msi-arrive-for-local-ai",
+    "category": "ai",
+    "published_at": 1795105562,
+    "original_lang": "en",
+    "scraped_at": "2026-11-19T20:16:47Z"
+  }
+]
